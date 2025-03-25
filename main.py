@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from stats_ritiro import calculate_losses_by_ret, calculate_total_matches, calculate_means, create_boxplot
-from scomponi_score import extract_scores
+from scomponi_score import extract_scores, calculate_winner_loser_score
 from db_config import connect_to_db, DatabaseManager
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -16,6 +16,10 @@ def main():
     df = pd.concat([data, data_2, data_3], axis=0, ignore_index=True)
 
     df.drop(['match_num'], axis=1, inplace=True)
+
+    df['tourney_date'] = pd.to_datetime(df['tourney_date'], format='%Y%m%d')
+
+    # TROVARE STAGIONI SARA
 
 # Analisi dei Ritiri per ogni giocatore
     df['ritiro'] = np.logical_or(
@@ -70,6 +74,17 @@ def main():
               'score_5set_w', 'score_5set_l', 'score_tiebreak_5set_l']
 
     df[score_cols] = np.array([extract_scores(s) for s in df['score']])
+
+    df = calculate_winner_loser_score(df)
+
+###  SALVATAGGIO DB DEL DATASET COMPLETO
+
+## Analisi EDA dataset
+
+    plt.figure(figsize=(10, 5))
+    sns.countplot(x='surface', data=df)
+    plt.title('Distribuzione delle Superfici di Gioco')
+    plt.show()
 
 if __name__ == '__main__':
     main()
