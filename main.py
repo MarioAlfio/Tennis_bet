@@ -86,5 +86,86 @@ def main():
     plt.title('Distribuzione delle Superfici di Gioco')
     plt.show()
 
+    # Dizionario per mappare le abbreviazioni ai loro significati (IN ORDINE LOGICO)
+    round_labels = {
+        'Q1': 'Primo turno di qualificazione',
+        'Q2': 'Secondo turno di qualificazione',
+        'Q3': 'Terzo turno di qualificazione',
+        'R64': 'Primo turno (64 giocatori)',
+        'R32': 'Secondo turno (32 giocatori)',
+        'R16': 'Ottavi di finale (16 giocatori)',
+        'QF': 'Quarti di finale',
+        'SF': 'Semifinali',
+        'F': 'Finale'
+    }
+
+    # Ordinamento personalizzato per il grafico
+    round_order = list(round_labels.keys())
+
+    # Mappa di colori personalizzati
+    round_colors = {
+        'Q1': '#1f77b4',   # Blu
+        'Q2': '#ff7f0e',   # Arancione
+        'Q3': '#2ca02c',   # Verde
+        'R64': '#d62728',  # Rosso
+        'R32': '#9467bd',  # Viola
+        'R16': '#8c564b',  # Marrone
+        'QF': '#e377c2',   # Rosa
+        'SF': '#7f7f7f',   # Grigio
+        'F': '#bcbd22'     # Giallo
+    }
+
+    # Creazione del grafico con colori personalizzati
+    plt.figure(figsize=(12, 6))
+    sns.countplot(x='round', hue= 'round', data=df, order=round_order, palette=round_colors, legend=False)
+
+    # Titoli e asse
+    plt.title('Distribuzione dei Turni di Gioco')
+    plt.xlabel('Turno')
+    plt.ylabel('Conteggio')
+
+    # Aggiunta della legenda
+    handles = [plt.Line2D([0], [0], color=round_colors[abbr], lw=4, label=f'{abbr}: {desc}') 
+                for abbr, desc in round_labels.items()]
+    plt.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    plt.tight_layout()
+    plt.show()
+
+    # Definizioni dei livelli dei tornei
+    tourney_labels = {
+        'G': 'Grand Slam',
+        'M': 'Masters 1000',
+        'A': 'ATP 500/250',
+        'C': 'Challenger'
+    }
+
+    tourney_order = list(tourney_labels.keys())
+    tourney_colors = {
+        'G': '#1f77b4',
+        'M': '#ff7f0e',
+        'A': '#2ca02c',
+        'C': '#d62728'
+    }
+
+    # Grafico senza warning
+    plt.figure(figsize=(10, 5))
+    sns.countplot(x='tourney_level', hue='tourney_level', data=df,
+                order=tourney_order, palette=tourney_colors, legend=False)
+
+    plt.title('Distribuzione dei Livelli dei Tornei')
+    plt.xlabel('Livello del Torneo')
+    plt.ylabel('Conteggio')
+
+    # Legenda manuale
+    handles = [plt.Line2D([0], [0], color=tourney_colors[abbr], lw=4, label=f'{abbr}: {desc}') 
+            for abbr, desc in tourney_labels.items()]
+    plt.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    plt.tight_layout()
+    plt.show()
+
+
+
 if __name__ == '__main__':
     main()
