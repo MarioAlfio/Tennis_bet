@@ -5,6 +5,7 @@ from scomponi_score import extract_scores, calculate_winner_loser_score
 from db_config import connect_to_db, DatabaseManager
 import matplotlib.pyplot as plt
 import seaborn as sns
+from dominance_ratio import calculate_dominance_ratio
 
 # Funzione principale
 def main():
@@ -148,7 +149,7 @@ def main():
         'C': '#d62728'
     }
 
-    # Grafico senza warning
+  
     plt.figure(figsize=(10, 5))
     sns.countplot(x='tourney_level', hue='tourney_level', data=df,
                 order=tourney_order, palette=tourney_colors, legend=False)
@@ -164,6 +165,22 @@ def main():
 
     plt.tight_layout()
     plt.show()
+
+### TROVARE TUTTE MEDIE E STATS SU MATCH E DOPO EFFETTUARE DI NUOVO CORRELAZIONE 
+
+    df = calculate_dominance_ratio(df)
+
+    plt.figure(figsize=(8, 5))
+    sns.boxplot(x=df['w_dominance_ratio'])
+    plt.title("Boxplot del Dominance Ratio (Vincitore)")
+    plt.xlabel("Dominance Ratio")
+    plt.tight_layout()
+    plt.show()
+
+    sns.histplot(df['w_dominance_ratio'], bins=30, kde=True)
+    plt.title("Distribuzione del Dominance Ratio (Vincitore)")
+    plt.show()
+
 
 
 
