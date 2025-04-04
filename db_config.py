@@ -1,73 +1,110 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, MetaData, Table
+from sqlalchemy import create_engine, Column, Integer, String, Float, Date, MetaData, Table, text
+from sqlalchemy.orm import sessionmaker
 import pandas as pd
+from logger import setup_logger
 
-# Configurazione connessione database
-DB_URL = "postgresql://username:password@localhost:5432/your_database"
+logger = setup_logger()
 
-# Connessione al database
+DB_URL = "postgresql://mytennuser:mytennuser1@localhost:5432/tennis_db"
+
 def connect_to_db():
-    engine = create_engine(DB_URL)
-    return engine
+    try:
+        engine = create_engine(DB_URL)
+        logger.info("Connessione al DB avvenuta con successo.")
+        return engine
+    except Exception as e:
+        logger.error(f"Errore nella connessione al database: {e}")
+        raise
 
-# Creazione delle tabelle
-def create_tables(engine):
-    metadata = MetaData()
+def create_match_stats_table(engine):
+    try:
+        metadata = MetaData()
+        table_name = "match_stats"
 
-    ritiro_stats = Table(
-        'ritiro_stats', metadata,
-        Column('player_id', Integer, primary_key=True),
-        Column('player_name', String),
-        Column('total_matches', Integer),
-        Column('losses_by_ret', Integer),
-        Column('weighted_mean', Float),
-        Column('harmonic_mean', Float),
-        Column('geometric_mean', Float)
-    )
+        match_stats = Table(
+            table_name, metadata,
+            Column('Date', Date),
+            Column('Tournament', String),
+            Column('Surface', String),
+            Column('Rd', String),
+            Column('wRk', Integer),
+            Column('vRk', Integer),
+            Column('w_name', String),
+            Column('vname', String),
+            Column('score', String),
+            Column('w_score', Integer),
+            Column('vscore', Integer),
+            Column('DR', Float),
+            Column('Ace_rate', Float),
+            Column('DF_rate', Float),
+            Column('1stIn', Float),
+            Column('w_1strate', Float),
+            Column('w_2strate', Float),
+            Column('BPSvd', Float),
+            Column('TPW', Float),
+            Column('RPW', Float),
+            Column('vA_rate', Float),
+            Column('v1st_rate', Float),
+            Column('v2nd_rate', Float),
+            Column('BPConv', Float),
+            Column('TP', Integer),
+            Column('Time', Integer)
+        )
+        
 
-    metadata.create_all(engine)
-    print("Tabelle create con successo.")
+        metadata.create_all(engine)
+        logger.info(f"Tabella '{table_name}' creata con successo.")
+    except Exception as e:
+        logger.error(f"Errore nella creazione della tabella {table_name}: {e}")
+        raise
 
-# CRUD Operations
 class DatabaseManager:
     def __init__(self, engine):
         self.engine = engine
+        self.Session = sessionmaker(bind=engine)
 
-    # Inserimento dati
-    def insert_data(self, table_name, data_df):
-        data_df.to_sql(table_name, self.engine, if_exists='replace', index=False, method='multi')
-        print(f"Dati inseriti nella tabella '{table_name}' con successo.")
+    def insert_dataframe(self, df, table_name):
+        try:
+            df.to_sql(table_name, self.engine, if_exists='append', index=False, method='multi')
+            logger.info(f"Inseriti {len(df)} record nella tabella '{table_name}'.")
+        except Exception as e:
+            logger.error(f"Errore nell'inserimento dati in '{table_name}': {e}")
+            raise
 
-    # Lettura dati
-    def read_data(self, table_name):
-        query = f"SELECT * FROM {table_name}"
-        df = pd.read_sql(query, self.engine)
-        return df
+    def read_table(self, table_name):
+        try:
+            with self.engine.connect() as conn:
+                query = text(f"SELECT * FROM {table_name}")
+                df = pd.read_sql(query, conn)
+            logger.info(f"Lettura completata dalla tabella '{table_name}'.")
+            return df
+        except Exception as e:
+            logger.error(f"Errore nella lettura della tabella '{table_name}': {e}")
+            raise
 
-    # Aggiornamento dati
-    def update_data(self, table_name, player_id, new_values):
-        query = f"""
-        UPDATE {table_name}
-        SET losses_by_ret = {new_values['losses_by_ret']}
-        WHERE player_id = {player_id}
-        """
-        with self.engine.connect() as conn:
-            conn.execute(query)
-        print(f"Dati aggiornati per player_id = {player_id}")
+    def update_data(self, table_name, condition_dict, update_dict):
+        try:
+            set_clause = ", ".join([f"{k} = :{k}" for k in update_dict.keys()])
+            where_clause = " AND ".join([f"{k} = :{k}" for k in condition_dict.keys()])
 
-    # Eliminazione dati
-    def delete_data(self, table_name, player_id):
-        query = f"DELETE FROM {table_name} WHERE player_id = {player_id}"
-        with self.engine.connect() as conn:
-            conn.execute(query)
-        print(f"Dati eliminati per player_id = {player_id}")
+            sql = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
+            params = {**update_dict, **condition_dict}
 
-if __name__ == '__main__':
-    engine = connect_to_db()
-    create_tables(engine)
+            with self.engine.connect() as conn:
+                conn.execute(text(sql), params)
+            logger.info(f"Aggiornato record nella tabella '{table_name}'.")
+        except Exception as e:
+            logger.error(f"Errore nell'update sulla tabella '{table_name}': {e}")
+            raise
 
-    # Esempio CRUD
-    db_manager = DatabaseManager(engine)
+    def delete_data(self, table_name, condition_dict):
+        try:
+            where_clause = " AND ".join([f"{k} = :{k}" for k in condition_dict.keys()])
+            sql = f"DELETE FROM {table_name} WHERE {where_clause}"
 
-    # Esempio di lettura dati
-    data = db_manager.read_data('ritiro_stats')
-    print(data)
+            with self.engine.connect() as conn:
+                conn.execute(text(sql), condition_dict)
+            logger.info(f"Eliminato record dalla tabella '{table_name}'.")
+        except Exception as e:
+            logger.error(f"Errore nella delete sulla tabella '{table_name}': {e}")
+            raise

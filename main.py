@@ -1,188 +1,60 @@
-import numpy as np
-import pandas as pd
-from stats_ritiro import calculate_losses_by_ret, calculate_total_matches, calculate_means, create_boxplot
-from scomponi_score import extract_scores, calculate_winner_loser_score
+import streamlit as st
 from db_config import connect_to_db, DatabaseManager
-import matplotlib.pyplot as plt
-import seaborn as sns
-from dominance_ratio import calculate_dominance_ratio
+from etl.extract import load_csv_files
+from etl.transform import clean_and_prepare, prepare_for_db
+from etl.load import save, get_table
+from logger import setup_logger
 
-# Funzione principale
-def main():
-    data = pd.read_csv("./data_csv/atp_matches_qual_chall_2022.csv", sep=",")
-    data_2 = pd.read_csv("./data_csv/atp_matches_qual_chall_2023.csv", sep=",")
-    data_3 = pd.read_csv("./data_csv/atp_matches_qual_chall_2024.csv", sep=",")
+logger = setup_logger()
 
-    # Concatenate DataFrames vertically
-    df = pd.concat([data, data_2, data_3], axis=0, ignore_index=True)
+st.set_page_config(page_title="Tennis Stats", layout="wide")
 
-    df.drop(['match_num'], axis=1, inplace=True)
+st.title("Tennis Stats")
+st.markdown("Pipeline ETL + Anteprima dati su DB")
 
-    df['tourney_date'] = pd.to_datetime(df['tourney_date'], format='%Y%m%d')
+# Step 1 - Caricamento file CSV
+file_paths = [
+    "./data_csv/atp_matches_qual_chall_2022.csv",
+    "./data_csv/atp_matches_qual_chall_2023.csv",
+    "./data_csv/atp_matches_qual_chall_2024.csv"
+]
 
-    # TROVARE STAGIONI SARA
+with st.spinner("Caricamento e unione dei file..."):
+    try:
+        raw_df = load_csv_files(file_paths)
+        st.success(f"File caricati. Totale righe: {len(raw_df)}")
+    except Exception as e:
+        st.error(f"Errore nel caricamento dei file: {e}")
+        st.stop()
 
-# Analisi dei Ritiri per ogni giocatore
-    df['ritiro'] = np.logical_or(
-    np.char.find(df['score'].values.astype(str), 'RET') >= 0,
-    np.char.find(df['score'].values.astype(str), 'W/O') >= 0
-    )
+# Step 2 - Pulizia e trasformazione
+with st.spinner("Pulizia e trasformazione dati..."):
+    try:
+        cleaned_df = clean_and_prepare(raw_df)
+        final_df = prepare_for_db(cleaned_df)
+        st.success("Dati trasformati con successo.")
+    except Exception as e:
+        st.error(f"Errore nella trasformazione: {e}")
+        st.stop()
 
-    calcolo_ritiro = df[['winner_id', 'winner_name', 'loser_id', 'loser_name',
-                         'score', 'ritiro', 'best_of', 'round', 'minutes']].copy()
+# Step 3 - Connessione DB e salvataggio
+engine = connect_to_db()
 
-    # Calcolo match totali e ritiri
-    player_matches = calculate_total_matches(calcolo_ritiro)
-    df_loser_ret = calculate_losses_by_ret(calcolo_ritiro)
+if st.button("🚀 Salva nel Database"):
+    with st.spinner("Salvataggio in corso..."):
+        try:
+            save(engine, final_df)
+            st.success("Dati salvati su DB per ogni anno.")
+        except Exception as e:
+            st.error(f"Errore nel salvataggio: {e}")
 
-    # Calcolo delle medie
-    merged_data = calculate_means(player_matches, df_loser_ret)
+# Step 4 - Anteprima tabella dal DB
+st.subheader("Anteprima dei dati salvati nel DB")
 
-    merged_data.describe()
-
-    # Creazione dei grafici
-    create_boxplot(merged_data['total_matches'], 
-               "Distribuzione Totale Match Disputati", "Totale Match")
-    
-    create_boxplot(df_loser_ret['losses_by_ret'], 
-               "Distribuzione dei Match Persi per Ritiro", "Match Persi per Ritiro")
-    
-    plt.figure(figsize=(12, 6))
-    sns.scatterplot(x='total_matches', y='mean', data=merged_data, alpha=0.7)
-    for i, row in merged_data.iterrows():
-        plt.text(row['total_matches'], row['weighted_mean'])
-    plt.title("Scatter Plot - Distribuzione Media Ponderata (Ritiri/Match Totali)")
-    plt.xlabel("Totale Match")
-    plt.ylabel("Media Ponderata")
-    plt.grid(True)
-    plt.show()
-
-    # Salvataggio nel database - AGGIUNGERE TRY EXCEPT
-    engine = connect_to_db()
-    db_manager = DatabaseManager(engine)
-    db_manager.insert_data('ritiro_stats', merged_data)
-
-    print("Dati elaborati e salvati con successo nel database PostgreSQL.")
-
-# split del campo stringa score
-
-    df.drop(['score'], axis=1, inplace=True)
-
-    score_cols = ['score_1set_w', 'score_1set_l', 'score_tiebreak_1set_l', 
-              'score_2set_w', 'score_2set_l', 'score_tiebreak_2set_l',
-              'score_3set_w', 'score_3set_l', 'score_tiebreak_3set_l',
-              'score_4set_w', 'score_4set_l', 'score_tiebreak_4set_l',
-              'score_5set_w', 'score_5set_l', 'score_tiebreak_5set_l']
-
-    df[score_cols] = np.array([extract_scores(s) for s in df['score']])
-
-    df = calculate_winner_loser_score(df)
-
-###  SALVATAGGIO DB DEL DATASET COMPLETO
-
-## Analisi EDA dataset
-
-    plt.figure(figsize=(10, 5))
-    sns.countplot(x='surface', data=df)
-    plt.title('Distribuzione delle Superfici di Gioco')
-    plt.show()
-
-    # Dizionario per mappare le abbreviazioni ai loro significati (IN ORDINE LOGICO)
-    round_labels = {
-        'Q1': 'Primo turno di qualificazione',
-        'Q2': 'Secondo turno di qualificazione',
-        'Q3': 'Terzo turno di qualificazione',
-        'R64': 'Primo turno (64 giocatori)',
-        'R32': 'Secondo turno (32 giocatori)',
-        'R16': 'Ottavi di finale (16 giocatori)',
-        'QF': 'Quarti di finale',
-        'SF': 'Semifinali',
-        'F': 'Finale'
-    }
-
-    # Ordinamento personalizzato per il grafico
-    round_order = list(round_labels.keys())
-
-    # Mappa di colori personalizzati
-    round_colors = {
-        'Q1': '#1f77b4',   # Blu
-        'Q2': '#ff7f0e',   # Arancione
-        'Q3': '#2ca02c',   # Verde
-        'R64': '#d62728',  # Rosso
-        'R32': '#9467bd',  # Viola
-        'R16': '#8c564b',  # Marrone
-        'QF': '#e377c2',   # Rosa
-        'SF': '#7f7f7f',   # Grigio
-        'F': '#bcbd22'     # Giallo
-    }
-
-    # Creazione del grafico con colori personalizzati
-    plt.figure(figsize=(12, 6))
-    sns.countplot(x='round', hue= 'round', data=df, order=round_order, palette=round_colors, legend=False)
-
-    # Titoli e asse
-    plt.title('Distribuzione dei Turni di Gioco')
-    plt.xlabel('Turno')
-    plt.ylabel('Conteggio')
-
-    # Aggiunta della legenda
-    handles = [plt.Line2D([0], [0], color=round_colors[abbr], lw=4, label=f'{abbr}: {desc}') 
-                for abbr, desc in round_labels.items()]
-    plt.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc='upper left')
-
-    plt.tight_layout()
-    plt.show()
-
-    # Definizioni dei livelli dei tornei
-    tourney_labels = {
-        'G': 'Grand Slam',
-        'M': 'Masters 1000',
-        'A': 'ATP 500/250',
-        'C': 'Challenger'
-    }
-
-    tourney_order = list(tourney_labels.keys())
-    tourney_colors = {
-        'G': '#1f77b4',
-        'M': '#ff7f0e',
-        'A': '#2ca02c',
-        'C': '#d62728'
-    }
-
-  
-    plt.figure(figsize=(10, 5))
-    sns.countplot(x='tourney_level', hue='tourney_level', data=df,
-                order=tourney_order, palette=tourney_colors, legend=False)
-
-    plt.title('Distribuzione dei Livelli dei Tornei')
-    plt.xlabel('Livello del Torneo')
-    plt.ylabel('Conteggio')
-
-    # Legenda manuale
-    handles = [plt.Line2D([0], [0], color=tourney_colors[abbr], lw=4, label=f'{abbr}: {desc}') 
-            for abbr, desc in tourney_labels.items()]
-    plt.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc='upper left')
-
-    plt.tight_layout()
-    plt.show()
-
-### TROVARE TUTTE MEDIE E STATS SU MATCH E DOPO EFFETTUARE DI NUOVO CORRELAZIONE 
-
-    df = calculate_dominance_ratio(df)
-
-    plt.figure(figsize=(8, 5))
-    sns.boxplot(x=df['w_dominance_ratio'])
-    plt.title("Boxplot del Dominance Ratio (Vincitore)")
-    plt.xlabel("Dominance Ratio")
-    plt.tight_layout()
-    plt.show()
-
-    sns.histplot(df['w_dominance_ratio'], bins=30, kde=True)
-    plt.title("Distribuzione del Dominance Ratio (Vincitore)")
-    plt.show()
-
-
-
-
-if __name__ == '__main__':
-    main()
+#selected_year = st.selectbox("Seleziona l'anno", [2022, 2023, 2024])
+if st.button("Mostra anteprima"):
+    try:
+        preview_df = get_table(engine).head(10)
+        st.dataframe(preview_df)
+    except Exception as e:
+        st.error(f"Errore nel recupero della tabella: {e}")
