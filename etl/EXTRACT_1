@@ -1,24 +1,42 @@
-# etl/extract.py
-
 import pandas as pd
 from logger import setup_logger
 import os
 
 logger = setup_logger()
 
-def load_csv(file_path):
-    """
-    Carica un singolo file CSV in un DataFrame. 
-    Controlla l'esistenza del file e logga eventuali errori.
-    """
-    if not os.path.exists(file_path):
-        logger.error(f"File non trovato: {file_path}")
-        raise FileNotFoundError(f"{file_path} non esiste")
+def load_csv_files(file_paths):
+    dfs = []
 
+    for fp in file_paths:
+        try:
+            if not os.path.exists(fp):
+                logger.warning(f"File non trovato: {fp}")
+                continue
+
+            df = pd.read_csv(fp)
+            logger.info(f"File caricato correttamente: {fp} ({len(df)} righe)")
+            dfs.append(df)
+
+        except pd.errors.ParserError as e:
+            logger.error(f"Errore di parsing nel file {fp}: {e}")
+        except Exception as e:
+            logger.error(f"Errore imprevisto nel file {fp}: {e}")
+
+    if not dfs:
+        logger.error("Nessun file CSV caricato. Verifica i percorsi.")
+        raise ValueError("Nessun file valido caricato.")
+
+    # Se è stato caricato un solo file, lo restituiamo direttamente
+    if len(dfs) == 1:
+        logger.info("Un solo file caricato; restituisco direttamente il DataFrame.")
+        return dfs[0]
+
+    # Altrimenti concatenazione multipla
     try:
-        df = pd.read_csv(file_path)
-        logger.info(f"File caricato: {file_path} ({len(df)} righe)")
-        return df
+        df_final = pd.concat(dfs, axis=0, ignore_index=True)
+        logger.info(f"Tutti i file concatenati con successo. Totale righe: {len(df_final)}")
+        return df_final
     except Exception as e:
-        logger.error(f"Errore nel caricamento di {file_path}: {e}")
+        logger.error(f"Errore nella concatenazione dei DataFrame: {e}")
+        raise}")
         raise
