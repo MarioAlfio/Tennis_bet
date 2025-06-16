@@ -5,31 +5,29 @@ import os
 logger = setup_logger()
 
 def load_csv_files(file_paths):
-    dfs = []
+    if not file_paths or len(file_paths) != 1:
+        raise ValueError("Devi specificare esattamente un file CSV da caricare.")
 
-    for fp in file_paths:
-        try:
-            if not os.path.exists(fp):
-                logger.warning(f"File non trovato: {fp}")
-                continue
-
-            df = pd.read_csv(fp)
-            logger.info(f"File caricato correttamente: {fp} ({len(df)} righe)")
-            dfs.append(df)
-
-        except pd.errors.ParserError as e:
-            logger.error(f"Errore di parsing nel file {fp}: {e}")
-        except Exception as e:
-            logger.error(f"Errore imprevisto nel file {fp}: {e}")
-
-    if not dfs:
-        logger.error("Nessun file CSV caricato. Verifica i percorsi.")
-        raise ValueError("Nessun file valido caricato.")
+    fp = file_paths[0]
 
     try:
-        df_final = pd.concat(dfs, axis=0, ignore_index=True)
-        logger.info(f"Tutti i file concatenati con successo. Totale righe: {len(df_final)}")
-        return df_final
+        if not os.path.exists(fp):
+            logger.error(f"File non trovato: {fp}")
+            raise FileNotFoundError(f"File non trovato: {fp}")
+
+        df = pd.read_csv(fp)
+
+        if df.empty:
+            logger.warning(f"Il file è vuoto: {fp}")
+            raise ValueError(f"Il file {fp} è vuoto.")
+
+        logger.info(f"File caricato correttamente: {fp} ({len(df)} righe)")
+        return df
+
+    except pd.errors.ParserError as e:
+        logger.error(f"Errore di parsing nel file {fp}: {e}")
+        raise
+
     except Exception as e:
-        logger.error(f"Errore nella concatenazione dei DataFrame: {e}")
+        logger.error(f"Errore imprevisto nel file {fp}: {e}")
         raise

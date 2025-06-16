@@ -19,7 +19,7 @@ logger = setup_logger()
 
 def clean_and_prepare(df):
     try:
-        df.drop(['match_num'], axis=1, inplace=True)
+        #df.drop(['match_num'], axis=1, inplace=True)
         df['tourney_date'] = pd.to_datetime(df['tourney_date'], format='%Y%m%d')
         df['year'] = df['tourney_date'].dt.year
 
@@ -35,7 +35,8 @@ def clean_and_prepare(df):
 
         columns_to_clean = [
             'w_ace', 'w_df', 'w_svpt', 'w_1stIn', 'w_1stWon', 'w_2ndWon', 'w_SvGms', 'w_bpSaved', 'w_bpFaced',
-            'l_ace', 'l_df', 'l_svpt', 'l_1stIn', 'l_1stWon', 'l_2ndWon', 'l_SvGms', 'l_bpSaved', 'l_bpFaced'
+            'l_ace', 'l_df', 'l_svpt', 'l_1stIn', 'l_1stWon', 'l_2ndWon', 'l_SvGms', 'l_bpSaved', 'l_bpFaced',
+            'match_num','winner_id', 'winner_entry','score', 'best_of'
         ]
 
         df = df.dropna(subset=columns_to_clean)
