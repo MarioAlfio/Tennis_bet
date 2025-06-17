@@ -36,7 +36,7 @@ def clean_and_prepare(df):
         columns_to_clean = [
             'w_ace', 'w_df', 'w_svpt', 'w_1stIn', 'w_1stWon', 'w_2ndWon', 'w_SvGms', 'w_bpSaved', 'w_bpFaced',
             'l_ace', 'l_df', 'l_svpt', 'l_1stIn', 'l_1stWon', 'l_2ndWon', 'l_SvGms', 'l_bpSaved', 'l_bpFaced',
-            'match_num','winner_id', 'winner_entry','score', 'best_of'
+            'match_num','winner_id', 'winner_entry','score', 'best_of', 'loser_seed', 'winner_seed'
         ]
 
         df = df.dropna(subset=columns_to_clean)
